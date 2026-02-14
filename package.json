@@ -3,15 +3,15 @@
   "displayName": "SmartCursor",
   "description": "Auto switch IME in C/C++: Chinese inside // comments and double-quoted strings, English elsewhere.",
   "version": "0.0.1",
-  "publisher": "your-publisher-id",
+  "publisher": "zlflly",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourname/smart-cursor.git"
+    "url": "https://github.com/zlflly/SmartCursor.git"
   },
-  "homepage": "https://github.com/yourname/smart-cursor#readme",
+  "homepage": "https://github.com/zlflly/SmartCursor#readme",
   "bugs": {
-    "url": "https://github.com/yourname/smart-cursor/issues"
+    "url": "https://github.com/zlflly/SmartCursor/issues"
   },
   "os": [
     "win32"
@@ -46,8 +46,13 @@
         },
         "imeContextSwitcher.enabledLanguageIds": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["c", "cpp"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "c",
+            "cpp"
+          ],
           "description": "Language IDs where auto switching is active."
         },
         "imeContextSwitcher.imSelectPath": {
@@ -87,5 +92,8 @@
         }
       }
     }
+  },
+  "scripts": {
+    "package": "npx @vscode/vsce package --out SmartCursor-%npm_package_version%.vsix"
   }
 }
