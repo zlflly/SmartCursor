@@ -2,7 +2,7 @@
   "name": "smart-cursor",
   "displayName": "SmartCursor",
   "description": "Auto switch IME in C/C++: Chinese inside // comments and double-quoted strings, English elsewhere.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "zlflly",
   "license": "MIT",
   "repository": {
