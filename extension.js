@@ -58,6 +58,75 @@ function isInsideDoubleQuotedString(beforeCursor) {
   return inDouble;
 }
 
+function analyzeContextUntilPosition(document, position) {
+  const text = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
+
+  let inDouble = false;
+  let inSingle = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (inLineComment) {
+      if (ch === "\n") {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+
+    if (inDouble) {
+      if (ch === '"' && !isEscaped(text, i)) {
+        inDouble = false;
+      }
+      continue;
+    }
+
+    if (inSingle) {
+      if (ch === "'" && !isEscaped(text, i)) {
+        inSingle = false;
+      }
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+
+    if (ch === '"' && !isEscaped(text, i)) {
+      inDouble = true;
+      continue;
+    }
+
+    if (ch === "'" && !isEscaped(text, i)) {
+      inSingle = true;
+    }
+  }
+
+  return {
+    inBlockComment,
+    inDoubleString: inDouble,
+  };
+}
+
 function detectShouldUseChinese(editor) {
   const cfg = getConfig();
   const enabledLangs = cfg.get("enabledLanguageIds", ["c", "cpp"]);
@@ -69,6 +138,7 @@ function detectShouldUseChinese(editor) {
   const position = editor.selection.active;
   const lineText = editor.document.lineAt(position.line).text;
   const beforeCursor = lineText.slice(0, position.character);
+  const context = analyzeContextUntilPosition(editor.document, position);
 
   if (cfg.get("enableInLineComment", true)) {
     const commentStart = findLineCommentStart(beforeCursor);
@@ -77,8 +147,12 @@ function detectShouldUseChinese(editor) {
     }
   }
 
+  if (context.inBlockComment) {
+    return true;
+  }
+
   if (cfg.get("enableInDoubleQuotedString", true)) {
-    if (isInsideDoubleQuotedString(beforeCursor)) {
+    if (context.inDoubleString || isInsideDoubleQuotedString(beforeCursor)) {
       return true;
     }
   }
