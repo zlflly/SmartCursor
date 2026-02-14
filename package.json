@@ -1,0 +1,91 @@
+{
+  "name": "smart-cursor",
+  "displayName": "SmartCursor",
+  "description": "Auto switch IME in C/C++: Chinese inside // comments and double-quoted strings, English elsewhere.",
+  "version": "0.0.1",
+  "publisher": "your-publisher-id",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourname/smart-cursor.git"
+  },
+  "homepage": "https://github.com/yourname/smart-cursor#readme",
+  "bugs": {
+    "url": "https://github.com/yourname/smart-cursor/issues"
+  },
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:cpp",
+    "onLanguage:c"
+  ],
+  "files": [
+    "extension.js",
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "bin/**"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "SmartCursor",
+      "properties": {
+        "imeContextSwitcher.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable automatic IME switching."
+        },
+        "imeContextSwitcher.enabledLanguageIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["c", "cpp"],
+          "description": "Language IDs where auto switching is active."
+        },
+        "imeContextSwitcher.imSelectPath": {
+          "type": "string",
+          "default": "bin/im-select.exe",
+          "description": "Path to im-select executable. Relative paths are resolved from extension folder."
+        },
+        "imeContextSwitcher.chineseCode": {
+          "type": "string",
+          "default": "2052",
+          "description": "Argument passed to im-select for Chinese input."
+        },
+        "imeContextSwitcher.englishCode": {
+          "type": "string",
+          "default": "1033",
+          "description": "Argument passed to im-select for English input."
+        },
+        "imeContextSwitcher.warnOnMissingBinary": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show one warning when im-select executable is missing."
+        },
+        "imeContextSwitcher.enableInLineComment": {
+          "type": "boolean",
+          "default": true,
+          "description": "Switch to Chinese when cursor is after // comment marker."
+        },
+        "imeContextSwitcher.enableInDoubleQuotedString": {
+          "type": "boolean",
+          "default": true,
+          "description": "Switch to Chinese when cursor is inside double-quoted strings."
+        },
+        "imeContextSwitcher.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print debug logs into output channel."
+        }
+      }
+    }
+  }
+}
