@@ -110,6 +110,36 @@
           "type": "boolean",
           "default": false,
           "description": "在输出面板中打印调试日志。"
+        },
+        "imeContextSwitcher.features.extendedLanguageSupport": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用扩展语言支持（JavaScript, Java, Go 等）。"
+        },
+        "imeContextSwitcher.features.templateStringDetection": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用模板字符串检测（JavaScript/TypeScript）。"
+        },
+        "imeContextSwitcher.features.markdownSupport": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用 Markdown 智能检测（实验性功能）。"
+        },
+        "imeContextSwitcher.features.customRules": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用自定义规则系统（实验性功能）。"
+        },
+        "imeContextSwitcher.features.performanceCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用性能缓存。"
+        },
+        "imeContextSwitcher.features.languageServiceApi": {
+          "type": "boolean",
+          "default": false,
+          "description": "使用语言服务 API（实验性功能）。"
         }
       }
     }

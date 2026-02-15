@@ -13,19 +13,95 @@ let hasWarnedMissingBinary = false;
 let detectedEnglishCode = null;
 let statusBarItem = null;
 
+// Log levels for enhanced logging
+const LogLevel = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3
+};
+
+let currentLogLevel = LogLevel.DEBUG;
+const performanceMetrics = new Map();
+
 function getConfig() {
   return vscode.workspace.getConfiguration("imeContextSwitcher");
 }
 
-function log(message) {
+// Feature flag system
+function isFeatureEnabled(featureName) {
+  const cfg = getConfig();
+  const featureKey = `features.${featureName}`;
+  const enabled = cfg.get(featureKey, false);
+
+  if (enabled) {
+    logDebug(`Feature enabled: ${featureName}`);
+  }
+
+  return enabled;
+}
+
+// Enhanced logging with levels and context
+function log(message, level = LogLevel.DEBUG, context = {}) {
   const cfg = getConfig();
   if (!cfg.get("debug", false)) {
     return;
   }
+
+  if (level < currentLogLevel) {
+    return;
+  }
+
+  const timestamp = new Date().toISOString();
+  const levelName = Object.keys(LogLevel).find(k => LogLevel[k] === level);
+  const contextStr = Object.keys(context).length > 0
+    ? ` ${JSON.stringify(context)}`
+    : '';
+
+  const fullMessage = `[${timestamp}] [${levelName}] ${message}${contextStr}`;
+
   if (!output) {
     output = vscode.window.createOutputChannel("SmartCursor");
   }
-  output.appendLine(message);
+  output.appendLine(fullMessage);
+}
+
+// Convenience logging functions
+function logDebug(message, context = {}) {
+  log(message, LogLevel.DEBUG, context);
+}
+
+function logInfo(message, context = {}) {
+  log(message, LogLevel.INFO, context);
+}
+
+function logWarn(message, context = {}) {
+  log(message, LogLevel.WARN, context);
+}
+
+function logError(message, context = {}) {
+  log(message, LogLevel.ERROR, context);
+}
+
+// Performance monitoring
+function perfStart(label) {
+  performanceMetrics.set(label, Date.now());
+}
+
+function perfEnd(label) {
+  const startTime = performanceMetrics.get(label);
+  if (!startTime) {
+    return;
+  }
+
+  const duration = Date.now() - startTime;
+  logDebug(`Performance: ${label}`, { duration: `${duration}ms` });
+
+  if (duration > 100) {
+    logWarn(`Slow operation: ${label}`, { duration: `${duration}ms` });
+  }
+
+  performanceMetrics.delete(label);
 }
 
 function updateStatusBar() {
@@ -208,7 +284,7 @@ function runSwitchCommand(command, mode) {
   const exePath = resolveExePath(command);
 
   if (!fs.existsSync(exePath)) {
-    log(`[missing] ${exePath}`);
+    logWarn(`Binary not found: ${exePath}`);
     if (!hasWarnedMissingBinary && cfg.get("warnOnMissingBinary", true)) {
       hasWarnedMissingBinary = true;
       vscode.window.showWarningMessage(
@@ -225,7 +301,7 @@ function runSwitchCommand(command, mode) {
 
   execFile(exePath, [code], { windowsHide: true }, (err) => {
     if (err) {
-      log(`[exec error] ${err.message}`);
+      logError(`Failed to execute im-select`, { error: err.message, mode, code });
     }
   });
 }
@@ -243,7 +319,7 @@ function queryCurrentImeCode(command) {
     }
     execFile(exePath, [], { windowsHide: true }, (err, stdout) => {
       if (err) {
-        log(`[query error] ${err.message}`);
+        logError(`Failed to query IME code`, { error: err.message });
         resolve(null);
         return;
       }
@@ -254,26 +330,38 @@ function queryCurrentImeCode(command) {
 }
 
 function updateImeForEditor(editor) {
+  perfStart('updateImeForEditor');
+
   if (!editor) {
+    perfEnd('updateImeForEditor');
     return;
   }
   const cfg = getConfig();
   if (!cfg.get("enabled", true)) {
+    perfEnd('updateImeForEditor');
     return;
   }
 
   const shouldChinese = detectShouldUseChinese(editor);
   const nextMode = shouldChinese ? "chinese" : "english";
   if (nextMode === currentMode) {
+    perfEnd('updateImeForEditor');
     return;
   }
 
   currentMode = nextMode;
   const command = cfg.get("imSelectPath", "bin/im-select.exe");
 
-  log(`[switch] ${nextMode} -> ${command}`);
+  logInfo(`Switching IME mode`, {
+    mode: nextMode,
+    languageId: editor.document.languageId,
+    line: editor.selection.active.line,
+    character: editor.selection.active.character
+  });
   runSwitchCommand(command, nextMode);
   updateStatusBar();
+
+  perfEnd('updateImeForEditor');
 }
 
 function switchToMode(mode) {
@@ -286,7 +374,7 @@ function switchToMode(mode) {
   }
   currentMode = mode;
   const command = cfg.get("imSelectPath", "bin/im-select.exe");
-  log(`[switch] ${mode} -> ${command}`);
+  logInfo(`Manual mode switch`, { mode });
   runSwitchCommand(command, mode);
   updateStatusBar();
 }
@@ -312,7 +400,7 @@ async function initializeEnglishCodeFromCurrentIme() {
 
   if (currentCode && currentCode !== chineseCode) {
     detectedEnglishCode = currentCode;
-    log(`[init] detected englishCode=${detectedEnglishCode}`);
+    logInfo(`Detected English IME code`, { code: detectedEnglishCode });
     return;
   }
 
@@ -336,7 +424,7 @@ function startEditorFocusMonitor() {
         switchToChineseOnBlur();
       }
     } catch (err) {
-      log(`[focus monitor disabled] ${err.message}`);
+      logError(`Focus monitor disabled`, { error: err.message });
       clearInterval(focusMonitorTimer);
       focusMonitorTimer = null;
     } finally {
@@ -447,10 +535,10 @@ function deactivate() {
 
   if (fs.existsSync(exePath)) {
     const chineseCode = String(cfg.get("chineseCode", "2052"));
-    log(`[deactivate] switching to Chinese: ${chineseCode}`);
+    logInfo(`Deactivating extension, switching to Chinese`, { code: chineseCode });
     execFile(exePath, [chineseCode], { windowsHide: true }, (err) => {
       if (err) {
-        log(`[deactivate error] ${err.message}`);
+        logError(`Failed to switch IME on deactivate`, { error: err.message });
       }
     });
   }
