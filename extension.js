@@ -179,7 +179,7 @@ async function commandDetectImeCodes() {
 
   // Step 1: Detect English IME
   const englishAction = await vscode.window.showInformationMessage(
-    "SmartCursor: 请切换到您的英文输入法，然后点击"确定"",
+    'SmartCursor: 请切换到您的英文输入法，然后点击"确定"',
     { modal: true },
     "确定",
     "取消"
@@ -203,7 +203,7 @@ async function commandDetectImeCodes() {
 
   // Step 2: Detect Chinese IME
   const chineseAction = await vscode.window.showInformationMessage(
-    "SmartCursor: 请切换到您的中文输入法，然后点击"确定"",
+    'SmartCursor: 请切换到您的中文输入法，然后点击"确定"',
     { modal: true },
     "确定",
     "取消"
