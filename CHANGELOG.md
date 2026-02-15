@@ -1,6 +1,32 @@
 # 更新日志
 
-## 0.1.0
+## 1.0.1 (2026-02-15)
+
+### 新增功能
+- **IME 状态轮询监控**：每秒自动查询当前输入法状态，实时同步状态栏显示
+- 即使用户在外部手动切换输入法（如用快捷键），状态栏也能自动更新
+- 解决了状态栏显示与实际输入法不一致的问题
+
+### 技术改进
+- 添加防并发检查机制（`imeStatusCheckInFlight`），避免重复查询
+- 优化定时器清理逻辑，在扩展停用时自动清理 IME 状态监控定时器
+- 新增 `startImeStatusMonitor()` 函数，独立管理 IME 状态监控
+
+### 配置优化
+- 修正 `.gitignore` 规则，正确忽略所有 `.vsix` 文件
+
+## 1.0.0 (2026-02-15)
+
+### 核心功能
+- **状态栏输入法指示器**：实时显示当前输入法状态（中文/英文）
+- **点击切换功能**：点击状态栏可快速切换输入法
+- **单引号字符串支持**：在单引号字符串中可切换到中文输入法（可配置）
+- **退出时自动切换**：VS Code 关闭时自动切换到中文输入法
+
+### 焦点切换优化
+- 添加强制切换参数（`force`），解决编辑器重新获得焦点时输入法状态不正确的问题
+- 改进焦点监控逻辑，跟踪编辑器焦点状态变化（`lastEditorTextFocus`）
+- 从外部切换回编辑器时强制更新输入法状态
 
 ### 基础设施
 - 新增：增强日志系统，支持 DEBUG/INFO/WARN/ERROR 四个级别
@@ -26,17 +52,25 @@
 - 新增：详细的调试日志和错误报告
 
 ### 配置项
+- 新增：`enableInSingleQuotedString` - 单引号字符串中启用中文
 - 新增：`enableInTemplateString` - 模板字符串中启用中文
 - 新增：`customRules` - 自定义规则列表
 - 新增：6个特性开关配置项
+  - `features.extendedLanguageSupport` - 扩展语言支持
+  - `features.templateStringDetection` - 模板字符串检测
+  - `features.markdownSupport` - Markdown 支持（实验性）
+  - `features.customRules` - 自定义规则系统（实验性）
+  - `features.performanceCache` - 性能缓存
+  - `features.languageServiceApi` - 语言服务 API（实验性）
+
+### Bug 修复
+- 修复：字符串中中文引号导致的语法错误
 
 ## 0.0.6
 
 - 新增：编辑器失焦（如切到终端、菜单、窗口失焦）时自动切换到中文输入法，可通过 imeContextSwitcher.switchToChineseOnEditorBlur 开关控制。
 - 新增：启动时读取当前输入法编码（若非中文）作为英文目标输入法，可通过 imeContextSwitcher.captureInitialImeAsEnglish 控制。
 - 修复：切换命令改为按目标模式取码，避免状态切换过程中的竞态导致的错误切换。
-
-# 更新日志
 
 ## 0.0.5
 
