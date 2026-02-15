@@ -441,8 +441,103 @@ function analyzeContextUntilPosition(document, position) {
   return result;
 }
 
+// Phase 4.1: Markdown context detection
+function detectMarkdownContext(editor) {
+  const position = editor.selection.active;
+  const document = editor.document;
+  const currentLine = position.line;
+
+  // Check if we're in a code block
+  let inCodeBlock = false;
+  let codeBlockFenceCount = 0;
+
+  // Scan from start to current line to detect code blocks
+  for (let i = 0; i <= currentLine; i++) {
+    const lineText = document.lineAt(i).text;
+    const trimmed = lineText.trim();
+
+    // Check for fenced code block (``` or ~~~)
+    if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+      codeBlockFenceCount++;
+    }
+  }
+
+  // If odd number of fences, we're inside a code block
+  inCodeBlock = codeBlockFenceCount % 2 === 1;
+
+  if (inCodeBlock) {
+    logDebug(`In Markdown code block, using English`);
+    return false; // Use English in code blocks
+  }
+
+  // Check for indented code block (4 spaces or 1 tab at line start)
+  const currentLineText = document.lineAt(currentLine).text;
+  if (currentLineText.startsWith("    ") || currentLineText.startsWith("\t")) {
+    // Check if previous line is also indented or empty (part of code block)
+    if (currentLine > 0) {
+      const prevLineText = document.lineAt(currentLine - 1).text;
+      const prevTrimmed = prevLineText.trim();
+      if (prevTrimmed === "" || prevLineText.startsWith("    ") || prevLineText.startsWith("\t")) {
+        logDebug(`In Markdown indented code block, using English`);
+        return false; // Use English in indented code blocks
+      }
+    }
+  }
+
+  // Not in code block, check if current paragraph contains Chinese
+  // Scan backwards to find paragraph start
+  let paragraphStart = currentLine;
+  for (let i = currentLine - 1; i >= 0; i--) {
+    const lineText = document.lineAt(i).text.trim();
+    if (lineText === "") {
+      paragraphStart = i + 1;
+      break;
+    }
+    if (i === 0) {
+      paragraphStart = 0;
+    }
+  }
+
+  // Scan forwards to find paragraph end
+  let paragraphEnd = currentLine;
+  for (let i = currentLine + 1; i < document.lineCount; i++) {
+    const lineText = document.lineAt(i).text.trim();
+    if (lineText === "") {
+      paragraphEnd = i - 1;
+      break;
+    }
+    if (i === document.lineCount - 1) {
+      paragraphEnd = i;
+    }
+  }
+
+  // Get paragraph text
+  let paragraphText = "";
+  for (let i = paragraphStart; i <= paragraphEnd; i++) {
+    paragraphText += document.lineAt(i).text + "\n";
+  }
+
+  // Check if paragraph contains Chinese characters
+  const hasChinese = /[\u4e00-\u9fa5]/.test(paragraphText);
+
+  if (hasChinese) {
+    logDebug(`Markdown paragraph contains Chinese, using Chinese`);
+    return true;
+  }
+
+  logDebug(`Markdown paragraph has no Chinese, using English`);
+  return false;
+}
+
 function detectShouldUseChinese(editor) {
   const cfg = getConfig();
+  const languageId = editor.document.languageId;
+
+  // Phase 4.1: Markdown support
+  if (isFeatureEnabled("markdownSupport") && languageId === "markdown") {
+    return detectMarkdownContext(editor);
+  }
+
   let enabledLangs = cfg.get("enabledLanguageIds", ["c", "cpp"]);
 
   // Extended language support (Phase 2.1)
@@ -453,7 +548,6 @@ function detectShouldUseChinese(editor) {
     logDebug(`Extended language support active`, { languages: enabledLangs });
   }
 
-  const languageId = editor.document.languageId;
   if (!enabledLangs.includes(languageId)) {
     return false;
   }
