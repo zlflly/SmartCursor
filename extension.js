@@ -11,6 +11,7 @@ let output = null;
 let extensionPath = "";
 let hasWarnedMissingBinary = false;
 let detectedEnglishCode = null;
+let statusBarItem = null;
 
 function getConfig() {
   return vscode.workspace.getConfiguration("imeContextSwitcher");
@@ -25,6 +26,29 @@ function log(message) {
     output = vscode.window.createOutputChannel("SmartCursor");
   }
   output.appendLine(message);
+}
+
+function updateStatusBar() {
+  if (!statusBarItem) {
+    return;
+  }
+  const cfg = getConfig();
+  if (!cfg.get("enabled", true)) {
+    statusBarItem.hide();
+    return;
+  }
+
+  if (currentMode === "chinese") {
+    statusBarItem.text = "$(keyboard) 中";
+    statusBarItem.tooltip = "当前输入法：中文";
+  } else if (currentMode === "english") {
+    statusBarItem.text = "$(keyboard) En";
+    statusBarItem.tooltip = "当前输入法：英文";
+  } else {
+    statusBarItem.text = "$(keyboard) --";
+    statusBarItem.tooltip = "输入法状态未知";
+  }
+  statusBarItem.show();
 }
 
 function resolveExePath(command) {
@@ -131,6 +155,7 @@ function analyzeContextUntilPosition(document, position) {
   return {
     inBlockComment,
     inDoubleString: inDouble,
+    inSingleString: inSingle,
   };
 }
 
@@ -162,6 +187,12 @@ function detectShouldUseChinese(editor) {
 
   if (cfg.get("enableInDoubleQuotedString", true)) {
     if (context.inDoubleString || isInsideDoubleQuotedString(beforeCursor)) {
+      return true;
+    }
+  }
+
+  if (cfg.get("enableInSingleQuotedString", false)) {
+    if (context.inSingleString) {
       return true;
     }
   }
@@ -242,6 +273,7 @@ function updateImeForEditor(editor) {
 
   log(`[switch] ${nextMode} -> ${command}`);
   runSwitchCommand(command, nextMode);
+  updateStatusBar();
 }
 
 function switchToMode(mode) {
@@ -256,6 +288,7 @@ function switchToMode(mode) {
   const command = cfg.get("imSelectPath", "bin/im-select.exe");
   log(`[switch] ${mode} -> ${command}`);
   runSwitchCommand(command, mode);
+  updateStatusBar();
 }
 
 function switchToChineseOnBlur() {
@@ -323,6 +356,13 @@ function scheduleUpdate(editor) {
 
 async function activate(context) {
   extensionPath = context.extensionPath;
+
+  // 创建状态栏
+  statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+  );
+  context.subscriptions.push(statusBarItem);
 
   await initializeEnglishCodeFromCurrentIme();
   startEditorFocusMonitor();
@@ -395,7 +435,26 @@ async function activate(context) {
   );
 }
 
-function deactivate() {}
+function deactivate() {
+  // 退出时切换到中文输入法
+  const cfg = getConfig();
+  if (!cfg.get("enabled", true)) {
+    return;
+  }
+
+  const command = cfg.get("imSelectPath", "bin/im-select.exe");
+  const exePath = resolveExePath(command);
+
+  if (fs.existsSync(exePath)) {
+    const chineseCode = String(cfg.get("chineseCode", "2052"));
+    log(`[deactivate] switching to Chinese: ${chineseCode}`);
+    execFile(exePath, [chineseCode], { windowsHide: true }, (err) => {
+      if (err) {
+        log(`[deactivate error] ${err.message}`);
+      }
+    });
+  }
+}
 
 module.exports = {
   activate,

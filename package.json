@@ -101,6 +101,11 @@
           "default": true,
           "description": "当光标位于英文双引号字符中时切换为中文输入法。"
         },
+        "imeContextSwitcher.enableInSingleQuotedString": {
+          "type": "boolean",
+          "default": false,
+          "description": "当光标位于英文单引号字符中时切换为中文输入法。"
+        },
         "imeContextSwitcher.debug": {
           "type": "boolean",
           "default": false,
