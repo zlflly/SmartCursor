@@ -293,6 +293,8 @@ function analyzeContextUntilPosition(document, position) {
   let inSingle = false;
   let inLineComment = false;
   let inBlockComment = false;
+  let inTemplate = false; // Phase 3.1: Template string support
+  let templateExpressionDepth = 0; // Track nested ${} expressions
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -327,6 +329,28 @@ function analyzeContextUntilPosition(document, position) {
       continue;
     }
 
+    // Phase 3.1: Template string handling
+    if (inTemplate) {
+      // Check for embedded expression start
+      if (ch === "$" && next === "{" && !isEscaped(text, i)) {
+        templateExpressionDepth++;
+        i++; // Skip the '{'
+        continue;
+      }
+
+      // Check for embedded expression end
+      if (templateExpressionDepth > 0 && ch === "}") {
+        templateExpressionDepth--;
+        continue;
+      }
+
+      // Check for template string end (only if not in embedded expression)
+      if (templateExpressionDepth === 0 && ch === "`" && !isEscaped(text, i)) {
+        inTemplate = false;
+      }
+      continue;
+    }
+
     if (ch === "/" && next === "/") {
       inLineComment = true;
       i++;
@@ -346,6 +370,12 @@ function analyzeContextUntilPosition(document, position) {
 
     if (ch === "'" && !isEscaped(text, i)) {
       inSingle = true;
+      continue;
+    }
+
+    // Phase 3.1: Template string start
+    if (ch === "`" && !isEscaped(text, i)) {
+      inTemplate = true;
     }
   }
 
@@ -353,6 +383,7 @@ function analyzeContextUntilPosition(document, position) {
     inBlockComment,
     inDoubleString: inDouble,
     inSingleString: inSingle,
+    inTemplateString: inTemplate && templateExpressionDepth === 0, // Only true if not in ${}
   };
 }
 
@@ -400,6 +431,16 @@ function detectShouldUseChinese(editor) {
   if (cfg.get("enableInSingleQuotedString", false)) {
     if (context.inSingleString) {
       return true;
+    }
+  }
+
+  // Phase 3.1: Template string support (JavaScript/TypeScript)
+  if (isFeatureEnabled("templateStringDetection")) {
+    if (cfg.get("enableInTemplateString", true)) {
+      if (context.inTemplateString) {
+        logDebug(`In template string, switching to Chinese`);
+        return true;
+      }
     }
   }
 

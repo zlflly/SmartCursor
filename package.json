@@ -128,6 +128,11 @@
           "default": false,
           "description": "当光标位于英文单引号字符中时切换为中文输入法。"
         },
+        "imeContextSwitcher.enableInTemplateString": {
+          "type": "boolean",
+          "default": true,
+          "description": "当光标位于模板字符串（反引号）中时切换为中文输入法（JavaScript/TypeScript）。"
+        },
         "imeContextSwitcher.debug": {
           "type": "boolean",
           "default": false,
