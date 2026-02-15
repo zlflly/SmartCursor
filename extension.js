@@ -5,9 +5,12 @@ const { execFile } = require("child_process");
 
 let currentMode = "unknown";
 let timer = null;
+let focusMonitorTimer = null;
+let focusCheckInFlight = false;
 let output = null;
 let extensionPath = "";
 let hasWarnedMissingBinary = false;
+let detectedEnglishCode = null;
 
 function getConfig() {
   return vscode.workspace.getConfiguration("imeContextSwitcher");
@@ -22,6 +25,10 @@ function log(message) {
     output = vscode.window.createOutputChannel("SmartCursor");
   }
   output.appendLine(message);
+}
+
+function resolveExePath(command) {
+  return path.isAbsolute(command) ? command : path.join(extensionPath, command);
 }
 
 function isEscaped(text, index) {
@@ -162,14 +169,12 @@ function detectShouldUseChinese(editor) {
   return false;
 }
 
-function runSwitchCommand(command) {
+function runSwitchCommand(command, mode) {
   if (!command || !command.trim()) {
     return;
   }
   const cfg = getConfig();
-  const exePath = path.isAbsolute(command)
-    ? command
-    : path.join(extensionPath, command);
+  const exePath = resolveExePath(command);
 
   if (!fs.existsSync(exePath)) {
     log(`[missing] ${exePath}`);
@@ -182,14 +187,38 @@ function runSwitchCommand(command) {
     return;
   }
 
-  const code = currentMode === "chinese"
+  const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
+  const code = mode === "chinese"
     ? String(cfg.get("chineseCode", "2052"))
-    : String(cfg.get("englishCode", "1033"));
+    : englishCode;
 
   execFile(exePath, [code], { windowsHide: true }, (err) => {
     if (err) {
       log(`[exec error] ${err.message}`);
     }
+  });
+}
+
+function queryCurrentImeCode(command) {
+  return new Promise((resolve) => {
+    if (!command || !command.trim()) {
+      resolve(null);
+      return;
+    }
+    const exePath = resolveExePath(command);
+    if (!fs.existsSync(exePath)) {
+      resolve(null);
+      return;
+    }
+    execFile(exePath, [], { windowsHide: true }, (err, stdout) => {
+      if (err) {
+        log(`[query error] ${err.message}`);
+        resolve(null);
+        return;
+      }
+      const code = String(stdout || "").trim();
+      resolve(code || null);
+    });
   });
 }
 
@@ -212,7 +241,77 @@ function updateImeForEditor(editor) {
   const command = cfg.get("imSelectPath", "bin/im-select.exe");
 
   log(`[switch] ${nextMode} -> ${command}`);
-  runSwitchCommand(command);
+  runSwitchCommand(command, nextMode);
+}
+
+function switchToMode(mode) {
+  const cfg = getConfig();
+  if (!cfg.get("enabled", true)) {
+    return;
+  }
+  if (mode === currentMode) {
+    return;
+  }
+  currentMode = mode;
+  const command = cfg.get("imSelectPath", "bin/im-select.exe");
+  log(`[switch] ${mode} -> ${command}`);
+  runSwitchCommand(command, mode);
+}
+
+function switchToChineseOnBlur() {
+  const cfg = getConfig();
+  if (!cfg.get("switchToChineseOnEditorBlur", true)) {
+    return;
+  }
+  switchToMode("chinese");
+}
+
+async function initializeEnglishCodeFromCurrentIme() {
+  const cfg = getConfig();
+  if (!cfg.get("captureInitialImeAsEnglish", true)) {
+    detectedEnglishCode = null;
+    return;
+  }
+
+  const command = cfg.get("imSelectPath", "bin/im-select.exe");
+  const currentCode = await queryCurrentImeCode(command);
+  const chineseCode = String(cfg.get("chineseCode", "2052"));
+
+  if (currentCode && currentCode !== chineseCode) {
+    detectedEnglishCode = currentCode;
+    log(`[init] detected englishCode=${detectedEnglishCode}`);
+    return;
+  }
+
+  detectedEnglishCode = null;
+}
+
+function startEditorFocusMonitor() {
+  if (focusMonitorTimer) {
+    clearInterval(focusMonitorTimer);
+    focusMonitorTimer = null;
+  }
+
+  focusMonitorTimer = setInterval(async () => {
+    if (focusCheckInFlight) {
+      return;
+    }
+    focusCheckInFlight = true;
+    try {
+      const editorFocused = await vscode.commands.executeCommand("getContextKeyValue", "editorTextFocus");
+      if (editorFocused === false) {
+        switchToChineseOnBlur();
+      }
+    } catch (err) {
+      log(`[focus monitor disabled] ${err.message}`);
+      clearInterval(focusMonitorTimer);
+      focusMonitorTimer = null;
+    } finally {
+      focusCheckInFlight = false;
+    }
+  }, 250);
+
+
 }
 
 function scheduleUpdate(editor) {
@@ -222,16 +321,34 @@ function scheduleUpdate(editor) {
   timer = setTimeout(() => updateImeForEditor(editor), 50);
 }
 
-function activate(context) {
+async function activate(context) {
   extensionPath = context.extensionPath;
+
+  await initializeEnglishCodeFromCurrentIme();
+  startEditorFocusMonitor();
+
+  context.subscriptions.push({
+    dispose: () => {
+      if (focusMonitorTimer) {
+        clearInterval(focusMonitorTimer);
+        focusMonitorTimer = null;
+      }
+    },
+  });
   const active = vscode.window.activeTextEditor;
   if (active) {
     scheduleUpdate(active);
+  } else {
+    switchToChineseOnBlur();
   }
 
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      scheduleUpdate(editor);
+      if (editor) {
+        scheduleUpdate(editor);
+      } else {
+        switchToChineseOnBlur();
+      }
     })
   );
 
@@ -254,8 +371,24 @@ function activate(context) {
   );
 
   context.subscriptions.push(
+    vscode.window.onDidChangeActiveTerminal(() => {
+      switchToChineseOnBlur();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((state) => {
+      if (!state.focused) {
+        switchToChineseOnBlur();
+      }
+    })
+  );
+
+  context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("imeContextSwitcher")) {
+        initializeEnglishCodeFromCurrentIme();
+        startEditorFocusMonitor();
         scheduleUpdate(vscode.window.activeTextEditor);
       }
     })
@@ -268,4 +401,3 @@ module.exports = {
   activate,
   deactivate,
 };
-

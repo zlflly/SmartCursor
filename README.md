@@ -15,6 +15,8 @@ Automatically switches input method in C/C++ based on cursor context.
   - Switch to English IME elsewhere.
 - Optional toggles for line comments, block comments, and double-quoted strings.
 - Default IME codes: Chinese `2052`, English `1033` (both configurable).
+- New: automatically switches to Chinese when editor loses focus (terminal/menu/outside window), configurable.
+- New: can capture current startup IME as the English target to reduce failures caused by initial IME state.
 
 ## 2. Known Issues
 
@@ -32,3 +34,4 @@ Automatically switches input method in C/C++ based on cursor context.
 - Detects whether the cursor is currently in comments or double-quoted strings.
 - Maps detection result to target mode (Chinese/English), and only switches when mode changes.
 - Runs `im-select.exe` via `execFile` with the configured IME code argument.
+

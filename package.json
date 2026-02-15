@@ -2,7 +2,7 @@
   "name": "smart-cursor",
   "displayName": "SmartCursor",
   "description": "在 C/C++ 中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "zlflly",
   "license": "MIT",
   "repository": {
@@ -70,6 +70,16 @@
           "type": "string",
           "default": "1033",
           "description": "切换到英文输入法时传给 im-select 的参数。"
+        },
+        "imeContextSwitcher.captureInitialImeAsEnglish": {
+          "type": "boolean",
+          "default": true,
+          "description": "启动时读取当前输入法编码（若非中文）并作为英文目标，减少初始输入法差异导致的切换失败。"
+        },
+        "imeContextSwitcher.switchToChineseOnEditorBlur": {
+          "type": "boolean",
+          "default": true,
+          "description": "当光标离开代码编辑区（如切到终端或菜单）时，自动切换到中文输入法。"
         },
         "imeContextSwitcher.warnOnMissingBinary": {
           "type": "boolean",
