@@ -24,6 +24,9 @@ const LogLevel = {
 let currentLogLevel = LogLevel.DEBUG;
 const performanceMetrics = new Map();
 
+// Performance cache (Phase 3.2)
+const contextAnalysisCache = new Map();
+
 function getConfig() {
   return vscode.workspace.getConfiguration("imeContextSwitcher");
 }
@@ -286,7 +289,43 @@ function isInsideDoubleQuotedString(beforeCursor) {
   return inDouble;
 }
 
+// Phase 3.2: Cache management
+function getCacheKey(document, position) {
+  return `${document.uri.toString()}:${position.line}:${position.character}`;
+}
+
+function clearCacheForDocument(documentUri) {
+  const uriString = documentUri.toString();
+  let clearedCount = 0;
+
+  for (const key of contextAnalysisCache.keys()) {
+    if (key.startsWith(uriString)) {
+      contextAnalysisCache.delete(key);
+      clearedCount++;
+    }
+  }
+
+  if (clearedCount > 0) {
+    logDebug(`Cleared cache for document`, { uri: uriString, entries: clearedCount });
+  }
+}
+
 function analyzeContextUntilPosition(document, position) {
+  // Phase 3.2: Check cache first if feature is enabled
+  if (isFeatureEnabled("performanceCache")) {
+    const cacheKey = getCacheKey(document, position);
+    const cached = contextAnalysisCache.get(cacheKey);
+
+    if (cached) {
+      logDebug(`Cache hit for context analysis`, {
+        line: position.line,
+        character: position.character
+      });
+      return cached;
+    }
+  }
+
+  perfStart('analyzeContextUntilPosition');
   const text = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
 
   let inDouble = false;
@@ -379,12 +418,27 @@ function analyzeContextUntilPosition(document, position) {
     }
   }
 
-  return {
+  const result = {
     inBlockComment,
     inDoubleString: inDouble,
     inSingleString: inSingle,
     inTemplateString: inTemplate && templateExpressionDepth === 0, // Only true if not in ${}
   };
+
+  perfEnd('analyzeContextUntilPosition');
+
+  // Phase 3.2: Store in cache if feature is enabled
+  if (isFeatureEnabled("performanceCache")) {
+    const cacheKey = getCacheKey(document, position);
+    contextAnalysisCache.set(cacheKey, result);
+    logDebug(`Cached context analysis`, {
+      line: position.line,
+      character: position.character,
+      cacheSize: contextAnalysisCache.size
+    });
+  }
+
+  return result;
 }
 
 function detectShouldUseChinese(editor) {
@@ -678,6 +732,11 @@ async function activate(context) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
+      // Phase 3.2: Clear cache when document changes
+      if (isFeatureEnabled("performanceCache")) {
+        clearCacheForDocument(event.document.uri);
+      }
+
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         return;
