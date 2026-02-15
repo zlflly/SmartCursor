@@ -2,7 +2,7 @@
   "name": "smart-cursor",
   "displayName": "SmartCursor",
   "description": "在 C/C++ 中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "zlflly",
   "license": "MIT",
   "repository": {
