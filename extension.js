@@ -116,15 +116,46 @@ function updateStatusBar() {
 
   if (currentMode === "chinese") {
     statusBarItem.text = "$(keyboard) 中";
-    statusBarItem.tooltip = "当前输入法：中文";
+    statusBarItem.tooltip = "当前输入法：中文\n点击切换到英文";
   } else if (currentMode === "english") {
     statusBarItem.text = "$(keyboard) En";
-    statusBarItem.tooltip = "当前输入法：英文";
+    statusBarItem.tooltip = "当前输入法：英文\n点击切换到中文";
   } else {
     statusBarItem.text = "$(keyboard) --";
     statusBarItem.tooltip = "输入法状态未知";
   }
   statusBarItem.show();
+}
+
+// Command handlers (Phase 2.2)
+function commandToggleEnabled() {
+  const cfg = getConfig();
+  const currentEnabled = cfg.get("enabled", true);
+  cfg.update("enabled", !currentEnabled, vscode.ConfigurationTarget.Global);
+
+  logInfo(`Extension ${!currentEnabled ? 'enabled' : 'disabled'}`);
+  vscode.window.showInformationMessage(
+    `SmartCursor: ${!currentEnabled ? '已启用' : '已禁用'}`
+  );
+
+  updateStatusBar();
+}
+
+function commandSwitchToChinese() {
+  logInfo(`Manual switch to Chinese via command`);
+  switchToMode("chinese");
+}
+
+function commandSwitchToEnglish() {
+  logInfo(`Manual switch to English via command`);
+  switchToMode("english");
+}
+
+function commandToggleIme() {
+  // Toggle between Chinese and English
+  const nextMode = currentMode === "chinese" ? "english" : "chinese";
+  logInfo(`Toggling IME via status bar click`, { from: currentMode, to: nextMode });
+  switchToMode(nextMode);
 }
 
 function resolveExePath(command) {
@@ -454,12 +485,27 @@ function scheduleUpdate(editor) {
 async function activate(context) {
   extensionPath = context.extensionPath;
 
-  // 创建状态栏
+  // 创建状态栏 (Phase 2.2: Add click command)
   statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
   );
+  statusBarItem.command = "imeContextSwitcher.toggleIme";
   context.subscriptions.push(statusBarItem);
+
+  // Register commands (Phase 2.2)
+  context.subscriptions.push(
+    vscode.commands.registerCommand("imeContextSwitcher.toggleEnabled", commandToggleEnabled)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("imeContextSwitcher.switchToChinese", commandSwitchToChinese)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("imeContextSwitcher.switchToEnglish", commandSwitchToEnglish)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("imeContextSwitcher.toggleIme", commandToggleIme)
+  );
 
   await initializeEnglishCodeFromCurrentIme();
   startEditorFocusMonitor();

@@ -37,6 +37,24 @@
   ],
   "main": "./extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "imeContextSwitcher.toggleEnabled",
+        "title": "SmartCursor: 切换启用/禁用"
+      },
+      {
+        "command": "imeContextSwitcher.switchToChinese",
+        "title": "SmartCursor: 切换到中文输入法"
+      },
+      {
+        "command": "imeContextSwitcher.switchToEnglish",
+        "title": "SmartCursor: 切换到英文输入法"
+      },
+      {
+        "command": "imeContextSwitcher.toggleIme",
+        "title": "SmartCursor: 切换输入法"
+      }
+    ],
     "configuration": {
       "title": "SmartCursor 输入法切换",
       "properties": {
