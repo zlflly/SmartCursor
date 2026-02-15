@@ -237,7 +237,16 @@ function analyzeContextUntilPosition(document, position) {
 
 function detectShouldUseChinese(editor) {
   const cfg = getConfig();
-  const enabledLangs = cfg.get("enabledLanguageIds", ["c", "cpp"]);
+  let enabledLangs = cfg.get("enabledLanguageIds", ["c", "cpp"]);
+
+  // Extended language support (Phase 2.1)
+  if (isFeatureEnabled("extendedLanguageSupport")) {
+    const extendedLangs = ["javascript", "typescript", "java", "go", "rust", "csharp", "php"];
+    // Merge with user-configured languages, avoiding duplicates
+    enabledLangs = [...new Set([...enabledLangs, ...extendedLangs])];
+    logDebug(`Extended language support active`, { languages: enabledLangs });
+  }
+
   const languageId = editor.document.languageId;
   if (!enabledLangs.includes(languageId)) {
     return false;
