@@ -529,9 +529,75 @@ function detectMarkdownContext(editor) {
   return false;
 }
 
+// Phase 4.2: Custom rules system
+function matchCustomRules(editor) {
+  const cfg = getConfig();
+  const customRules = cfg.get("customRules", []);
+
+  if (!Array.isArray(customRules) || customRules.length === 0) {
+    return null; // No rules defined
+  }
+
+  const position = editor.selection.active;
+  const document = editor.document;
+  const lineText = document.lineAt(position.line).text;
+  const beforeCursor = lineText.slice(0, position.character);
+
+  // Try to match each rule in order
+  for (let i = 0; i < customRules.length; i++) {
+    const rule = customRules[i];
+
+    // Validate rule structure
+    if (!rule || typeof rule !== "object") {
+      logWarn(`Invalid custom rule at index ${i}: not an object`, { rule });
+      continue;
+    }
+
+    if (!rule.pattern || typeof rule.pattern !== "string") {
+      logWarn(`Invalid custom rule at index ${i}: missing or invalid pattern`, { rule });
+      continue;
+    }
+
+    if (!rule.mode || (rule.mode !== "chinese" && rule.mode !== "english")) {
+      logWarn(`Invalid custom rule at index ${i}: invalid mode`, { rule });
+      continue;
+    }
+
+    // Try to create regex and match
+    try {
+      const regex = new RegExp(rule.pattern);
+      if (regex.test(beforeCursor)) {
+        logInfo(`Custom rule matched`, {
+          index: i,
+          pattern: rule.pattern,
+          mode: rule.mode,
+          description: rule.description || "No description"
+        });
+        return rule.mode === "chinese";
+      }
+    } catch (err) {
+      logError(`Invalid regex in custom rule at index ${i}`, {
+        pattern: rule.pattern,
+        error: err.message
+      });
+      continue;
+    }
+  }
+
+  return null; // No rules matched
+}
+
 function detectShouldUseChinese(editor) {
   const cfg = getConfig();
   const languageId = editor.document.languageId;
+
+  // Phase 4.2: Custom rules have highest priority
+  if (isFeatureEnabled("customRules")) {
+    const customResult = matchCustomRules(editor);
+    if (customResult !== null) {
+      return customResult;
+    }
+  }
 
   // Phase 4.1: Markdown support
   if (isFeatureEnabled("markdownSupport") && languageId === "markdown") {

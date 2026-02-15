@@ -133,6 +133,30 @@
           "default": true,
           "description": "当光标位于模板字符串（反引号）中时切换为中文输入法（JavaScript/TypeScript）。"
         },
+        "imeContextSwitcher.customRules": {
+          "type": "array",
+          "default": [],
+          "description": "自定义规则列表，用于根据正则表达式匹配来控制输入法切换。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "正则表达式模式"
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["chinese", "english"],
+                "description": "匹配时使用的输入法模式"
+              },
+              "description": {
+                "type": "string",
+                "description": "规则描述"
+              }
+            },
+            "required": ["pattern", "mode"]
+          }
+        },
         "imeContextSwitcher.debug": {
           "type": "boolean",
           "default": false,
