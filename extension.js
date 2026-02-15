@@ -7,6 +7,7 @@ let currentMode = "unknown";
 let timer = null;
 let focusMonitorTimer = null;
 let focusCheckInFlight = false;
+let lastEditorTextFocus = null;
 let output = null;
 let extensionPath = "";
 let hasWarnedMissingBinary = false;
@@ -146,19 +147,19 @@ function commandToggleEnabled() {
 
 function commandSwitchToChinese() {
   logInfo(`Manual switch to Chinese via command`);
-  switchToMode("chinese");
+  switchToMode("chinese", true);
 }
 
 function commandSwitchToEnglish() {
   logInfo(`Manual switch to English via command`);
-  switchToMode("english");
+  switchToMode("english", true);
 }
 
 function commandToggleIme() {
   // Toggle between Chinese and English
   const nextMode = currentMode === "chinese" ? "english" : "chinese";
   logInfo(`Toggling IME via status bar click`, { from: currentMode, to: nextMode });
-  switchToMode(nextMode);
+  switchToMode(nextMode, true);
 }
 
 // Smart IME detection wizard (Phase 2.3)
@@ -714,7 +715,7 @@ function queryCurrentImeCode(command) {
   });
 }
 
-function updateImeForEditor(editor) {
+function updateImeForEditor(editor, force = false) {
   perfStart('updateImeForEditor');
 
   if (!editor) {
@@ -729,7 +730,7 @@ function updateImeForEditor(editor) {
 
   const shouldChinese = detectShouldUseChinese(editor);
   const nextMode = shouldChinese ? "chinese" : "english";
-  if (nextMode === currentMode) {
+  if (nextMode === currentMode && !force) {
     perfEnd('updateImeForEditor');
     return;
   }
@@ -749,12 +750,12 @@ function updateImeForEditor(editor) {
   perfEnd('updateImeForEditor');
 }
 
-function switchToMode(mode) {
+function switchToMode(mode, force = false) {
   const cfg = getConfig();
   if (!cfg.get("enabled", true)) {
     return;
   }
-  if (mode === currentMode) {
+  if (mode === currentMode && !force) {
     return;
   }
   currentMode = mode;
@@ -769,7 +770,7 @@ function switchToChineseOnBlur() {
   if (!cfg.get("switchToChineseOnEditorBlur", true)) {
     return;
   }
-  switchToMode("chinese");
+  switchToMode("chinese", true);
 }
 
 async function initializeEnglishCodeFromCurrentIme() {
@@ -808,6 +809,15 @@ function startEditorFocusMonitor() {
       if (editorFocused === false) {
         switchToChineseOnBlur();
       }
+      if (editorFocused === true && lastEditorTextFocus === false) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+          scheduleUpdate(activeEditor, true);
+        }
+      }
+      if (typeof editorFocused === "boolean") {
+        lastEditorTextFocus = editorFocused;
+      }
     } catch (err) {
       logError(`Focus monitor disabled`, { error: err.message });
       clearInterval(focusMonitorTimer);
@@ -820,11 +830,11 @@ function startEditorFocusMonitor() {
 
 }
 
-function scheduleUpdate(editor) {
+function scheduleUpdate(editor, force = false) {
   if (timer) {
     clearTimeout(timer);
   }
-  timer = setTimeout(() => updateImeForEditor(editor), 50);
+  timer = setTimeout(() => updateImeForEditor(editor, force), 50);
 }
 
 async function activate(context) {
@@ -877,7 +887,7 @@ async function activate(context) {
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (editor) {
-        scheduleUpdate(editor);
+        scheduleUpdate(editor, true);
       } else {
         switchToChineseOnBlur();
       }
@@ -957,3 +967,4 @@ module.exports = {
   activate,
   deactivate,
 };
+

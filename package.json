@@ -2,7 +2,7 @@
   "name": "smart-cursor",
   "displayName": "SmartCursor",
   "description": "在 C/C++ 中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "zlflly",
   "license": "MIT",
   "repository": {
@@ -146,7 +146,10 @@
               },
               "mode": {
                 "type": "string",
-                "enum": ["chinese", "english"],
+                "enum": [
+                  "chinese",
+                  "english"
+                ],
                 "description": "匹配时使用的输入法模式"
               },
               "description": {
@@ -154,7 +157,10 @@
                 "description": "规则描述"
               }
             },
-            "required": ["pattern", "mode"]
+            "required": [
+              "pattern",
+              "mode"
+            ]
           }
         },
         "imeContextSwitcher.debug": {
