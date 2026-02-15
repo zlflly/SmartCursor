@@ -8,6 +8,8 @@ let timer = null;
 let focusMonitorTimer = null;
 let focusCheckInFlight = false;
 let lastEditorTextFocus = null;
+let imeStatusMonitorTimer = null;
+let imeStatusCheckInFlight = false;
 let output = null;
 let extensionPath = "";
 let hasWarnedMissingBinary = false;
@@ -830,6 +832,62 @@ function startEditorFocusMonitor() {
 
 }
 
+// IME status monitor - polls current IME state and updates status bar
+function startImeStatusMonitor() {
+  if (imeStatusMonitorTimer) {
+    clearInterval(imeStatusMonitorTimer);
+    imeStatusMonitorTimer = null;
+  }
+
+  const cfg = getConfig();
+  const command = cfg.get("imSelectPath", "bin/im-select.exe");
+
+  imeStatusMonitorTimer = setInterval(async () => {
+    if (imeStatusCheckInFlight) {
+      return;
+    }
+    imeStatusCheckInFlight = true;
+    try {
+      const currentImeCode = await queryCurrentImeCode(command);
+      if (!currentImeCode) {
+        imeStatusCheckInFlight = false;
+        return;
+      }
+
+      const chineseCode = String(cfg.get("chineseCode", "2052"));
+      const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
+
+      // Determine mode based on current IME code
+      let detectedMode = "unknown";
+      if (currentImeCode === chineseCode) {
+        detectedMode = "chinese";
+      } else if (currentImeCode === englishCode) {
+        detectedMode = "english";
+      } else {
+        // If it's neither, assume it's an English variant
+        detectedMode = "english";
+      }
+
+      // Update currentMode and status bar if changed
+      if (detectedMode !== currentMode && detectedMode !== "unknown") {
+        logDebug(`IME status changed externally`, {
+          from: currentMode,
+          to: detectedMode,
+          code: currentImeCode
+        });
+        currentMode = detectedMode;
+        updateStatusBar();
+      }
+    } catch (err) {
+      logError(`IME status monitor error`, { error: err.message });
+    } finally {
+      imeStatusCheckInFlight = false;
+    }
+  }, 1000); // Poll every 1 second
+
+  logInfo(`IME status monitor started`);
+}
+
 function scheduleUpdate(editor, force = false) {
   if (timer) {
     clearTimeout(timer);
@@ -868,12 +926,17 @@ async function activate(context) {
 
   await initializeEnglishCodeFromCurrentIme();
   startEditorFocusMonitor();
+  startImeStatusMonitor();
 
   context.subscriptions.push({
     dispose: () => {
       if (focusMonitorTimer) {
         clearInterval(focusMonitorTimer);
         focusMonitorTimer = null;
+      }
+      if (imeStatusMonitorTimer) {
+        clearInterval(imeStatusMonitorTimer);
+        imeStatusMonitorTimer = null;
       }
     },
   });
