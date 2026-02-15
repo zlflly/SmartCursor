@@ -158,6 +158,96 @@ function commandToggleIme() {
   switchToMode(nextMode);
 }
 
+// Smart IME detection wizard (Phase 2.3)
+async function commandDetectImeCodes() {
+  const cfg = getConfig();
+  const command = cfg.get("imSelectPath", "bin/im-select.exe");
+  const exePath = resolveExePath(command);
+
+  // Check if im-select exists
+  if (!fs.existsSync(exePath)) {
+    vscode.window.showErrorMessage(
+      `SmartCursor: 找不到 im-select.exe，请先配置 imeContextSwitcher.imSelectPath`
+    );
+    return;
+  }
+
+  logInfo(`Starting IME detection wizard`);
+
+  // Step 1: Detect English IME
+  const englishAction = await vscode.window.showInformationMessage(
+    "SmartCursor: 请切换到您的英文输入法，然后点击"确定"",
+    { modal: true },
+    "确定",
+    "取消"
+  );
+
+  if (englishAction !== "确定") {
+    logInfo(`IME detection cancelled by user`);
+    return;
+  }
+
+  const englishCode = await queryCurrentImeCode(command);
+  if (!englishCode) {
+    vscode.window.showErrorMessage(
+      `SmartCursor: 无法检测到英文输入法编码，请检查 im-select 是否正常工作`
+    );
+    logError(`Failed to detect English IME code`);
+    return;
+  }
+
+  logInfo(`Detected English IME code`, { code: englishCode });
+
+  // Step 2: Detect Chinese IME
+  const chineseAction = await vscode.window.showInformationMessage(
+    "SmartCursor: 请切换到您的中文输入法，然后点击"确定"",
+    { modal: true },
+    "确定",
+    "取消"
+  );
+
+  if (chineseAction !== "确定") {
+    logInfo(`IME detection cancelled by user at Chinese step`);
+    return;
+  }
+
+  const chineseCode = await queryCurrentImeCode(command);
+  if (!chineseCode) {
+    vscode.window.showErrorMessage(
+      `SmartCursor: 无法检测到中文输入法编码，请检查 im-select 是否正常工作`
+    );
+    logError(`Failed to detect Chinese IME code`);
+    return;
+  }
+
+  logInfo(`Detected Chinese IME code`, { code: chineseCode });
+
+  // Validate that the codes are different
+  if (englishCode === chineseCode) {
+    vscode.window.showWarningMessage(
+      `SmartCursor: 检测到的中英文输入法编码相同（${englishCode}），请确保您切换了不同的输入法`
+    );
+    logWarn(`English and Chinese IME codes are identical`, { code: englishCode });
+    return;
+  }
+
+  // Step 3: Save the detected codes
+  await cfg.update("englishCode", englishCode, vscode.ConfigurationTarget.Global);
+  await cfg.update("chineseCode", chineseCode, vscode.ConfigurationTarget.Global);
+
+  // Update the detected English code for runtime use
+  detectedEnglishCode = englishCode;
+
+  vscode.window.showInformationMessage(
+    `SmartCursor: 输入法编码检测成功！\n英文: ${englishCode}\n中文: ${chineseCode}`
+  );
+
+  logInfo(`IME detection completed successfully`, {
+    englishCode,
+    chineseCode
+  });
+}
+
 function resolveExePath(command) {
   return path.isAbsolute(command) ? command : path.join(extensionPath, command);
 }
@@ -505,6 +595,10 @@ async function activate(context) {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("imeContextSwitcher.toggleIme", commandToggleIme)
+  );
+  // Register IME detection command (Phase 2.3)
+  context.subscriptions.push(
+    vscode.commands.registerCommand("imeContextSwitcher.detectImeCodes", commandDetectImeCodes)
   );
 
   await initializeEnglishCodeFromCurrentIme();

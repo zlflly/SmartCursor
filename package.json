@@ -53,6 +53,10 @@
       {
         "command": "imeContextSwitcher.toggleIme",
         "title": "SmartCursor: 切换输入法"
+      },
+      {
+        "command": "imeContextSwitcher.detectImeCodes",
+        "title": "SmartCursor: 自动检测输入法编码"
       }
     ],
     "configuration": {
