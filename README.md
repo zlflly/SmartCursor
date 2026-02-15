@@ -6,8 +6,7 @@
 
 This extension auto-switches IME in C/C++:
 
-- Chinese IME inside `//` comments
-- Chinese IME inside double-quoted strings `"..."`
+- Chinese IME inside `//` comments`r`n- Chinese IME inside `/* ... */` comments`r`n- Chinese IME inside double-quoted strings `"..."`
 - English IME elsewhere
 
 ## Platform support
@@ -63,8 +62,7 @@ How to confirm IDs on your machine:
 
 这个扩展会在 C/C++ 中自动切换输入法：
 
-- 在 `//` 注释内切换为中文输入法
-- 在双引号字符串 `"..."` 内切换为中文输入法
+- 在 `//` 注释内切换为中文输入法`r`n- 在 `/* ... */` 注释内切换为中文输入法`r`n- 在双引号字符串 `"..."` 内切换为中文输入法
 - 其他位置切换为英文输入法
 
 ## 平台支持
@@ -115,6 +113,7 @@ How to confirm IDs on your machine:
 2. 在 VS Code 打开命令面板（`Ctrl+Shift+P`）。
 3. 执行 `Extensions: Install from VSIX...`。
 4. 选择 `.vsix` 文件并完成安装。
+
 
 
 

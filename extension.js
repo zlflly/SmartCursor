@@ -147,8 +147,10 @@ function detectShouldUseChinese(editor) {
     }
   }
 
-  if (context.inBlockComment) {
-    return true;
+  if (cfg.get("enableInBlockComment", true)) {
+    if (context.inBlockComment) {
+      return true;
+    }
   }
 
   if (cfg.get("enableInDoubleQuotedString", true)) {
@@ -266,3 +268,4 @@ module.exports = {
   activate,
   deactivate,
 };
+
