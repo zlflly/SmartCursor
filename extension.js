@@ -303,7 +303,18 @@ function findLineCommentStart(beforeCursor) {
     
     // Check for Python-style line comment
     if (!inDouble && !inSingle && ch === "#") {
-      return i;
+      // Check if '#' is at the beginning of the line or only preceded by whitespace
+      let isComment = true;
+      for (let j = 0; j < i; j++) {
+        const prevChar = beforeCursor[j];
+        if (prevChar !== ' ' && prevChar !== '\t' && prevChar !== '\n' && prevChar !== '\r') {
+          isComment = false;
+          break;
+        }
+      }
+      if (isComment) {
+        return i;
+      }
     }
   }
   return -1;
@@ -968,25 +979,24 @@ function startEditorFocusMonitor() {
     focusMonitorTimer = null;
   }
 
-  focusMonitorTimer = setInterval(async () => {
+  focusMonitorTimer = setInterval(() => {
     if (focusCheckInFlight) {
       return;
     }
     focusCheckInFlight = true;
     try {
-      const editorFocused = await vscode.commands.executeCommand("getContextKeyValue", "editorTextFocus");
-      if (editorFocused === false) {
+      const activeEditor = vscode.window.activeTextEditor;
+      const editorFocused = !!activeEditor;
+      
+      if (!editorFocused) {
         switchToChineseOnBlur();
       }
-      if (editorFocused === true && lastEditorTextFocus === false) {
-        const activeEditor = vscode.window.activeTextEditor;
+      if (editorFocused && lastEditorTextFocus === false) {
         if (activeEditor) {
           scheduleUpdate(activeEditor, true);
         }
       }
-      if (typeof editorFocused === "boolean") {
-        lastEditorTextFocus = editorFocused;
-      }
+      lastEditorTextFocus = editorFocused;
     } catch (err) {
       logError(`Focus monitor disabled`, { error: err.message });
       clearInterval(focusMonitorTimer);
