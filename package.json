@@ -2,7 +2,7 @@
   "name": "smart-cursor",
   "displayName": "SmartCursor",
   "description": "在多种编程语言中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "zlflly",
   "license": "MIT",
   "repository": {
@@ -13,9 +13,7 @@
   "bugs": {
     "url": "https://github.com/zlflly/SmartCursor/issues"
   },
-  "os": [
-    "win32"
-  ],
+
   "engines": {
     "vscode": "^1.80.0"
   },

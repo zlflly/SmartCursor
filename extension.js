@@ -786,6 +786,16 @@ function sendConfiguredSameImeToggle(mode) {
   });
 }
 
+function isWsl() {
+  try {
+    const os = require('os');
+    const release = os.release();
+    return release.includes('Microsoft') || release.includes('WSL');
+  } catch (e) {
+    return false;
+  }
+}
+
 function runSwitchCommand(command, mode) {
   if (!command || !command.trim()) {
     return;
@@ -793,6 +803,51 @@ function runSwitchCommand(command, mode) {
   const cfg = getConfig();
   const exePath = resolveExePath(command);
 
+  // Check if running in WSL
+  const inWsl = isWsl();
+  
+  if (inWsl) {
+    logInfo(`Running in WSL environment`);
+    // For WSL, we'll use PowerShell to run the Windows im-select.exe
+    // This assumes the user has im-select.exe in the expected location
+    const windowsPath = exePath.replace(/^\/mnt\/([a-z])\//i, '$1:/').replace(/\//g, '\\');
+    logInfo(`Converted WSL path to Windows path: ${windowsPath}`);
+    
+    const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
+    const chineseCode = String(cfg.get("chineseCode", "2052"));
+    const useShiftWithinChineseIme = cfg.get("useShiftWithinChineseIme", false);
+    const useShiftFallback = useShiftWithinChineseIme && englishCode === chineseCode;
+
+    if (useShiftFallback) {
+      if (mode === currentMode) {
+        return;
+      }
+      // For WSL, we need to run the PowerShell script through wsl.exe
+      const shortcut = getSameImeToggleShortcut();
+      const psScript = buildShortcutPowerShellScript(shortcut);
+      markRecentSwitch(mode, `same-ime-shortcut:${shortcut}`);
+      execFile("wsl.exe", ["powershell.exe", "-NoProfile", "-Command", psScript], { windowsHide: true }, (err) => {
+        if (err) {
+          logError("Failed to send same-IME toggle shortcut in WSL", { error: err.message, mode, shortcut });
+          return;
+        }
+        logDebug("Sent same-IME toggle shortcut in WSL", { mode, shortcut });
+      });
+      return;
+    }
+
+    const code = mode === "chinese" ? chineseCode : englishCode;
+    markRecentSwitch(mode, `ime-code:${code}`);
+    // Run im-select.exe through wsl.exe
+    execFile("wsl.exe", ["powershell.exe", "-NoProfile", "-Command", `& "${windowsPath}" ${code}`], { windowsHide: true }, (err) => {
+      if (err) {
+        logError(`Failed to execute im-select in WSL`, { error: err.message, mode, code });
+      }
+    });
+    return;
+  }
+
+  // Original Windows implementation
   if (!fs.existsSync(exePath)) {
     logWarn(`Binary not found: ${exePath}`);
     if (!hasWarnedMissingBinary && cfg.get("warnOnMissingBinary", true)) {
@@ -833,6 +888,26 @@ function queryCurrentImeCode(command) {
       return;
     }
     const exePath = resolveExePath(command);
+    
+    // Check if running in WSL
+    const inWsl = isWsl();
+    
+    if (inWsl) {
+      logInfo(`Querying IME code in WSL environment`);
+      const windowsPath = exePath.replace(/^\/mnt\/([a-z])\//i, '$1:/').replace(/\//g, '\\');
+      execFile("wsl.exe", ["powershell.exe", "-NoProfile", "-Command", `& "${windowsPath}"`], { windowsHide: true }, (err, stdout) => {
+        if (err) {
+          logError(`Failed to query IME code in WSL`, { error: err.message });
+          resolve(null);
+          return;
+        }
+        const code = String(stdout || "").trim();
+        resolve(code || null);
+      });
+      return;
+    }
+    
+    // Original Windows implementation
     if (!fs.existsSync(exePath)) {
       resolve(null);
       return;
