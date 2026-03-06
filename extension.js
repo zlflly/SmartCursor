@@ -810,8 +810,15 @@ function runSwitchCommand(command, mode) {
     logInfo(`Running in WSL environment`);
     // For WSL, we'll use PowerShell to run the Windows im-select.exe
     // This assumes the user has im-select.exe in the expected location
-    const windowsPath = exePath.replace(/^\/mnt\/([a-z])\//i, '$1:/').replace(/\//g, '\\');
-    logInfo(`Converted WSL path to Windows path: ${windowsPath}`);
+    let windowsPath;
+    if (exePath.startsWith('/mnt/')) {
+      // Convert WSL path to Windows path
+      windowsPath = exePath.replace(/^\/mnt\/([a-z])\//i, '$1:/').replace(/\//g, '\\');
+    } else {
+      // Assume it's already a Windows path
+      windowsPath = exePath;
+    }
+    logInfo(`Using Windows path: ${windowsPath}`);
     
     const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
     const chineseCode = String(cfg.get("chineseCode", "2052"));
@@ -822,13 +829,25 @@ function runSwitchCommand(command, mode) {
       if (mode === currentMode) {
         return;
       }
-      // For WSL, we need to run the PowerShell script through wsl.exe
+      // For WSL, we need to run the PowerShell script
       const shortcut = getSameImeToggleShortcut();
       const psScript = buildShortcutPowerShellScript(shortcut);
       markRecentSwitch(mode, `same-ime-shortcut:${shortcut}`);
-      execFile("wsl.exe", ["powershell.exe", "-NoProfile", "-Command", psScript], { windowsHide: true }, (err) => {
+      logInfo(`Executing same-IME toggle shortcut in WSL: ${shortcut}`);
+      
+      // Try different approaches to run PowerShell
+      execFile("wsl.exe", ["--exec", "powershell.exe", "-NoProfile", "-Command", psScript], { windowsHide: true }, (err, stdout, stderr) => {
         if (err) {
-          logError("Failed to send same-IME toggle shortcut in WSL", { error: err.message, mode, shortcut });
+          logError("Failed to send same-IME toggle shortcut in WSL", { error: err.message, stderr: stderr, mode, shortcut });
+          // Try alternative approach
+          logInfo(`Trying alternative approach for same-IME toggle`);
+          execFile("powershell.exe", ["-NoProfile", "-Command", psScript], { windowsHide: true }, (err2, stdout2, stderr2) => {
+            if (err2) {
+              logError(`Alternative approach failed for same-IME toggle`, { error: err2.message, stderr: stderr2, mode, shortcut });
+              return;
+            }
+            logDebug("Sent same-IME toggle shortcut in WSL (alternative approach)", { mode, shortcut });
+          });
           return;
         }
         logDebug("Sent same-IME toggle shortcut in WSL", { mode, shortcut });
@@ -839,10 +858,25 @@ function runSwitchCommand(command, mode) {
     const code = mode === "chinese" ? chineseCode : englishCode;
     markRecentSwitch(mode, `ime-code:${code}`);
     // Run im-select.exe through wsl.exe
-    execFile("wsl.exe", ["powershell.exe", "-NoProfile", "-Command", `& "${windowsPath}" ${code}`], { windowsHide: true }, (err) => {
+    const psCommand = `& "${windowsPath}" ${code}`;
+    logInfo(`Executing im-select in WSL: ${psCommand}`);
+    
+    // Try different approaches to run PowerShell
+    execFile("wsl.exe", ["--exec", "powershell.exe", "-NoProfile", "-Command", psCommand], { windowsHide: true }, (err, stdout, stderr) => {
       if (err) {
-        logError(`Failed to execute im-select in WSL`, { error: err.message, mode, code });
+        logError(`Failed to execute im-select in WSL`, { error: err.message, stderr: stderr, mode, code });
+        // Try alternative approach
+        logInfo(`Trying alternative approach for im-select`);
+        execFile("powershell.exe", ["-NoProfile", "-Command", psCommand], { windowsHide: true }, (err2, stdout2, stderr2) => {
+          if (err2) {
+            logError(`Alternative approach failed for im-select`, { error: err2.message, stderr: stderr2, mode, code });
+            return;
+          }
+          logInfo(`Executed im-select in WSL (alternative approach)`, { mode, code });
+        });
+        return;
       }
+      logInfo(`Executed im-select in WSL`, { mode, code });
     });
     return;
   }
@@ -894,14 +928,42 @@ function queryCurrentImeCode(command) {
     
     if (inWsl) {
       logInfo(`Querying IME code in WSL environment`);
-      const windowsPath = exePath.replace(/^\/mnt\/([a-z])\//i, '$1:/').replace(/\//g, '\\');
-      execFile("wsl.exe", ["powershell.exe", "-NoProfile", "-Command", `& "${windowsPath}"`], { windowsHide: true }, (err, stdout) => {
+      // For WSL, we need to use a different approach
+      // Try to run PowerShell directly with the Windows path
+      let windowsPath;
+      if (exePath.startsWith('/mnt/')) {
+        // Convert WSL path to Windows path
+        windowsPath = exePath.replace(/^\/mnt\/([a-z])\//i, '$1:/').replace(/\//g, '\\');
+      } else {
+        // Assume it's already a Windows path
+        windowsPath = exePath;
+      }
+      logInfo(`Using Windows path: ${windowsPath}`);
+      
+      // Try different approaches to run PowerShell
+      const psCommand = `& "${windowsPath}"`;
+      logInfo(`Executing PowerShell command: ${psCommand}`);
+      
+      // Use wsl.exe to run PowerShell
+      execFile("wsl.exe", ["--exec", "powershell.exe", "-NoProfile", "-Command", psCommand], { windowsHide: true }, (err, stdout, stderr) => {
         if (err) {
-          logError(`Failed to query IME code in WSL`, { error: err.message });
-          resolve(null);
+          logError(`Failed to query IME code in WSL`, { error: err.message, stderr: stderr });
+          // Try alternative approach
+          logInfo(`Trying alternative approach`);
+          execFile("powershell.exe", ["-NoProfile", "-Command", psCommand], { windowsHide: true }, (err2, stdout2, stderr2) => {
+            if (err2) {
+              logError(`Alternative approach failed`, { error: err2.message, stderr: stderr2 });
+              resolve(null);
+              return;
+            }
+            const code = String(stdout2 || "").trim();
+            logInfo(`Alternative approach succeeded, code: ${code}`);
+            resolve(code || null);
+          });
           return;
         }
         const code = String(stdout || "").trim();
+        logInfo(`Query IME code in WSL succeeded, code: ${code}`);
         resolve(code || null);
       });
       return;
