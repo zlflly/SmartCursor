@@ -1,5 +1,24 @@
 # 更新日志
 
+## 1.0.4 (2026-03-06)
+
+### 新增功能
+
+- **WSL 环境支持**：现在可以在 WSL 环境的 VS Code 中使用 SmartCursor
+- 自动检测 WSL 环境，通过 wsl.exe 调用 Windows 的 im-select.exe
+- 支持在 WSL 环境中查询和切换输入法
+
+### 语言支持扩展
+
+- 扩展默认语言支持列表，现在包括：C、C++、Python、JavaScript、TypeScript、Java、Go、Rust、C#、PHP、Ruby、Swift、Kotlin、Markdown
+- 改进 Python 行注释检测，正确识别 `#` 开头的注释
+- 支持 Python 三引号文档字符串（`'''` 或 `"""`）
+
+### 焦点检测改进
+
+- 改进编辑器焦点检测机制，使用更可靠的方法检测编辑器焦点状态
+- 确保在切换到其他应用程序时自动切换到中文输入法
+
 ## 1.0.1 (2026-02-15) 大家新年快乐哇
 
 ### 新增功能

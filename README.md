@@ -12,8 +12,8 @@
 - 🎯 状态栏实时显示当前输入法
 
 **支持多种语言**
-- C/C++、JavaScript、TypeScript
-- Java、Go、Rust、C#、PHP
+- C/C++、Python、JavaScript、TypeScript
+- Java、Go、Rust、C#、PHP、Ruby、Swift、Kotlin
 - Markdown（实验性）
 
 **智能检测**
@@ -42,7 +42,7 @@ SmartCursor: 自动检测输入法编码
 ```json
 {
   "imeContextSwitcher.enabled": true,
-  "imeContextSwitcher.enabledLanguageIds": ["c", "cpp"],
+  "imeContextSwitcher.enabledLanguageIds": ["c", "cpp", "python", "javascript", "typescript", "java", "go", "rust", "csharp", "php", "ruby", "swift", "kotlin", "markdown"],
   "imeContextSwitcher.chineseCode": "2052",
   "imeContextSwitcher.englishCode": "1033"
 }
@@ -116,7 +116,8 @@ const code = "example";
 
 ## 🔧 系统要求
 
-- **平台**：Windows（依赖 `im-select.exe`）
+- **平台**：Windows 或 WSL（Windows Subsystem for Linux）环境
+- **依赖**：Windows 环境需要 `im-select.exe`，WSL 环境需要能够访问 Windows 中的 `im-select.exe`
 - **VS Code**：1.80.0 或更高版本
 
 ## 🐛 调试
