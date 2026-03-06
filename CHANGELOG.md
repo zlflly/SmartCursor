@@ -1,5 +1,13 @@
 # 更新日志
 
+## 1.0.6 (2026-03-06)
+
+### 新增功能
+
+- **Jupyter Notebook 支持**：现在支持在 Jupyter Notebook 文件（.ipynb）中使用 SmartCursor
+- 添加了 `jupyter` 和 `jupyter-notebook` 语言 ID 到默认支持列表
+- 更新了文档，说明对 Jupyter 文件格式的支持
+
 ## 1.0.5 (2026-03-06)
 
 ### Bug 修复

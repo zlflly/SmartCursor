@@ -14,6 +14,7 @@
 **支持多种语言**
 - C/C++、Python、JavaScript、TypeScript
 - Java、Go、Rust、C#、PHP、Ruby、Swift、Kotlin
+- Jupyter Notebook（.ipynb）
 - Markdown（实验性）
 
 **智能检测**
@@ -42,7 +43,7 @@ SmartCursor: 自动检测输入法编码
 ```json
 {
   "imeContextSwitcher.enabled": true,
-  "imeContextSwitcher.enabledLanguageIds": ["c", "cpp", "python", "javascript", "typescript", "java", "go", "rust", "csharp", "php", "ruby", "swift", "kotlin", "markdown"],
+  "imeContextSwitcher.enabledLanguageIds": ["c", "cpp", "python", "javascript", "typescript", "java", "go", "rust", "csharp", "php", "ruby", "swift", "kotlin", "markdown", "jupyter", "jupyter-notebook"],
   "imeContextSwitcher.chineseCode": "2052",
   "imeContextSwitcher.englishCode": "1033"
 }

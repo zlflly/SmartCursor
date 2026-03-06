@@ -2,7 +2,7 @@
   "name": "smart-cursor",
   "displayName": "SmartCursor",
   "description": "在多种编程语言中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "icon": "finder_macos_bigsur_icon_190173.png",
   "publisher": "zlflly",
   "license": "MIT",
@@ -84,7 +84,9 @@
             "ruby",
             "swift",
             "kotlin",
-            "markdown"
+            "markdown",
+            "jupyter",
+            "jupyter-notebook"
           ],
           "description": "启用自动切换的语言 ID 列表。"
         },
