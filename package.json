@@ -1,8 +1,8 @@
 {
   "name": "smart-cursor",
   "displayName": "SmartCursor",
-  "description": "在 C/C++ 中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
-  "version": "1.0.1",
+  "description": "在多种编程语言中根据上下文自动切换输入法：注释和字符串切中文，其余切英文。",
+  "version": "1.0.2",
   "publisher": "zlflly",
   "license": "MIT",
   "repository": {
@@ -23,9 +23,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onLanguage:cpp",
-    "onLanguage:c"
+    "onStartupFinished"
   ],
   "files": [
     "extension.js",
@@ -74,7 +72,19 @@
           },
           "default": [
             "c",
-            "cpp"
+            "cpp",
+            "python",
+            "javascript",
+            "typescript",
+            "java",
+            "go",
+            "rust",
+            "csharp",
+            "php",
+            "ruby",
+            "swift",
+            "kotlin",
+            "markdown"
           ],
           "description": "启用自动切换的语言 ID 列表。"
         },
@@ -92,6 +102,35 @@
           "type": "string",
           "default": "1033",
           "description": "切换到英文输入法时传给 im-select 的参数。"
+        },
+        "imeContextSwitcher.useShiftWithinChineseIme": {
+          "type": "boolean",
+          "default": false,
+          "description": "当中英文输入法编码相同（同一中文输入法内中英子模式）时，使用 Shift 作为兼容切换方式。"
+        },
+        "imeContextSwitcher.sameImeToggleShortcut": {
+          "type": "string",
+          "enum": ["shift", "ctrl+space", "shift+space"],
+          "default": "shift",
+          "description": "同一输入法中英子模式切换时使用的快捷键。"
+        },
+        "imeContextSwitcher.switchProtectionMs": {
+          "type": "number",
+          "default": 350,
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "触发切换后忽略外部状态回读的保护时间（毫秒），用于减少抖动。"
+        },
+        "imeContextSwitcher.promptSameImeInitialModeOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "同一输入法中英切换模式下，启动时询问当前输入态用于初始化。"
+        },
+        "imeContextSwitcher.sameImeInitialMode": {
+          "type": "string",
+          "enum": ["unknown", "chinese", "english"],
+          "default": "unknown",
+          "description": "记忆的同一输入法初始输入态。设为 unknown 可在下次启动重新校准。"
         },
         "imeContextSwitcher.captureInitialImeAsEnglish": {
           "type": "boolean",
@@ -205,3 +244,6 @@
     "package": "npx @vscode/vsce package --out SmartCursor-%npm_package_version%.vsix"
   }
 }
+
+
+

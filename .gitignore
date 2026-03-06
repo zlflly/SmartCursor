@@ -1,1 +1,2 @@
 *.vsix
+.tmp_vsix_unpack/

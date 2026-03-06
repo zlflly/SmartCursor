@@ -15,6 +15,8 @@ let extensionPath = "";
 let hasWarnedMissingBinary = false;
 let detectedEnglishCode = null;
 let statusBarItem = null;
+let lastSwitchTimestamp = 0;
+let lastSwitchStrategy = "none";
 
 // Log levels for enhanced logging
 const LogLevel = {
@@ -228,10 +230,22 @@ async function commandDetectImeCodes() {
 
   logInfo(`Detected Chinese IME code`, { code: chineseCode });
 
-  // Validate that the codes are different
+  const useShiftWithinChineseIme = cfg.get("useShiftWithinChineseIme", false);
+  // Validate that the codes are different unless Shift fallback is explicitly enabled
   if (englishCode === chineseCode) {
+    if (useShiftWithinChineseIme) {
+      await cfg.update("englishCode", englishCode, vscode.ConfigurationTarget.Global);
+      await cfg.update("chineseCode", chineseCode, vscode.ConfigurationTarget.Global);
+      detectedEnglishCode = englishCode;
+      await cfg.update("sameImeInitialMode", "unknown", vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage(
+        `SmartCursor: 中英文编码相同（${englishCode}），已启用同输入法 Shift 兼容切换模式。`
+      );
+      logInfo(`IME detection completed with same-code Shift fallback`, { code: englishCode });
+      return;
+    }
     vscode.window.showWarningMessage(
-      `SmartCursor: 检测到的中英文输入法编码相同（${englishCode}），请确保您切换了不同的输入法`
+      `SmartCursor: 检测到的中英文输入法编码相同（${englishCode}）。如需支持同输入法内 Shift 中英切换，请开启 imeContextSwitcher.useShiftWithinChineseIme。`
     );
     logWarn(`English and Chinese IME codes are identical`, { code: englishCode });
     return;
@@ -268,13 +282,27 @@ function isEscaped(text, index) {
 
 function findLineCommentStart(beforeCursor) {
   let inDouble = false;
-  for (let i = 0; i < beforeCursor.length - 1; i++) {
+  let inSingle = false;
+  for (let i = 0; i < beforeCursor.length; i++) {
     const ch = beforeCursor[i];
+    
+    // Check for string delimiters
     if (ch === '"' && !isEscaped(beforeCursor, i)) {
       inDouble = !inDouble;
       continue;
     }
-    if (!inDouble && ch === "/" && beforeCursor[i + 1] === "/") {
+    if (ch === "'" && !isEscaped(beforeCursor, i)) {
+      inSingle = !inSingle;
+      continue;
+    }
+    
+    // Check for C-style line comment
+    if (!inDouble && !inSingle && ch === "/" && i + 1 < beforeCursor.length && beforeCursor[i + 1] === "/") {
+      return i;
+    }
+    
+    // Check for Python-style line comment
+    if (!inDouble && !inSingle && ch === "#") {
       return i;
     }
   }
@@ -337,10 +365,13 @@ function analyzeContextUntilPosition(document, position) {
   let inBlockComment = false;
   let inTemplate = false; // Phase 3.1: Template string support
   let templateExpressionDepth = 0; // Track nested ${} expressions
+  let inTripleDouble = false; // Python triple double quotes
+  let inTripleSingle = false; // Python triple single quotes
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];
+    const nextNext = text[i + 2];
 
     if (inLineComment) {
       if (ch === "\n") {
@@ -367,6 +398,22 @@ function analyzeContextUntilPosition(document, position) {
     if (inSingle) {
       if (ch === "'" && !isEscaped(text, i)) {
         inSingle = false;
+      }
+      continue;
+    }
+
+    if (inTripleDouble) {
+      if (ch === '"' && next === '"' && nextNext === '"' && !isEscaped(text, i)) {
+        inTripleDouble = false;
+        i += 2;
+      }
+      continue;
+    }
+
+    if (inTripleSingle) {
+      if (ch === "'" && next === "'" && nextNext === "'" && !isEscaped(text, i)) {
+        inTripleSingle = false;
+        i += 2;
       }
       continue;
     }
@@ -406,12 +453,24 @@ function analyzeContextUntilPosition(document, position) {
     }
 
     if (ch === '"' && !isEscaped(text, i)) {
-      inDouble = true;
+      // Check for triple double quotes
+      if (next === '"' && nextNext === '"') {
+        inTripleDouble = true;
+        i += 2;
+      } else {
+        inDouble = true;
+      }
       continue;
     }
 
     if (ch === "'" && !isEscaped(text, i)) {
-      inSingle = true;
+      // Check for triple single quotes
+      if (next === "'" && nextNext === "'") {
+        inTripleSingle = true;
+        i += 2;
+      } else {
+        inSingle = true;
+      }
       continue;
     }
 
@@ -423,8 +482,8 @@ function analyzeContextUntilPosition(document, position) {
 
   const result = {
     inBlockComment,
-    inDoubleString: inDouble,
-    inSingleString: inSingle,
+    inDoubleString: inDouble || inTripleDouble,
+    inSingleString: inSingle || inTripleSingle,
     inTemplateString: inTemplate && templateExpressionDepth === 0, // Only true if not in ${}
   };
 
@@ -628,7 +687,7 @@ function detectShouldUseChinese(editor) {
 
   if (cfg.get("enableInLineComment", true)) {
     const commentStart = findLineCommentStart(beforeCursor);
-    if (commentStart >= 0 && position.character > commentStart + 1) {
+    if (commentStart >= 0 && position.character > commentStart) {
       return true;
     }
   }
@@ -664,6 +723,58 @@ function detectShouldUseChinese(editor) {
   return false;
 }
 
+function getSwitchProtectionMs() {
+  const cfg = getConfig();
+  const raw = Number(cfg.get("switchProtectionMs", 350));
+  if (!Number.isFinite(raw)) {
+    return 350;
+  }
+  return Math.max(0, Math.min(5000, Math.floor(raw)));
+}
+
+function markRecentSwitch(mode, strategy) {
+  lastSwitchTimestamp = Date.now();
+  lastSwitchStrategy = strategy;
+  logDebug("Recorded switch dispatch", { mode, strategy, protectionMs: getSwitchProtectionMs() });
+}
+
+function isWithinSwitchProtectionWindow() {
+  const protectionMs = getSwitchProtectionMs();
+  if (protectionMs <= 0) {
+    return false;
+  }
+  return Date.now() - lastSwitchTimestamp < protectionMs;
+}
+
+function getSameImeToggleShortcut() {
+  const cfg = getConfig();
+  return String(cfg.get("sameImeToggleShortcut", "shift")).toLowerCase();
+}
+
+function buildShortcutPowerShellScript(shortcut) {
+  const prefix = "Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class K{[DllImport(\"user32.dll\")]public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);}';";
+  if (shortcut === "ctrl+space") {
+    return `${prefix} [K]::keybd_event(0x11,0,0,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x20,0,0,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x20,0,2,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x11,0,2,0)`;
+  }
+  if (shortcut === "shift+space") {
+    return `${prefix} [K]::keybd_event(0x10,0,0,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x20,0,0,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x20,0,2,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x10,0,2,0)`;
+  }
+  return `${prefix} [K]::keybd_event(0x10,0,0,0); Start-Sleep -Milliseconds 10; [K]::keybd_event(0x10,0,2,0)`;
+}
+
+function sendConfiguredSameImeToggle(mode) {
+  const shortcut = getSameImeToggleShortcut();
+  const psScript = buildShortcutPowerShellScript(shortcut);
+  markRecentSwitch(mode, `same-ime-shortcut:${shortcut}`);
+  execFile("powershell.exe", ["-NoProfile", "-Command", psScript], { windowsHide: true }, (err) => {
+    if (err) {
+      logError("Failed to send same-IME toggle shortcut", { error: err.message, mode, shortcut });
+      return;
+    }
+    logDebug("Sent same-IME toggle shortcut", { mode, shortcut });
+  });
+}
+
 function runSwitchCommand(command, mode) {
   if (!command || !command.trim()) {
     return;
@@ -683,10 +794,20 @@ function runSwitchCommand(command, mode) {
   }
 
   const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
-  const code = mode === "chinese"
-    ? String(cfg.get("chineseCode", "2052"))
-    : englishCode;
+  const chineseCode = String(cfg.get("chineseCode", "2052"));
+  const useShiftWithinChineseIme = cfg.get("useShiftWithinChineseIme", false);
+  const useShiftFallback = useShiftWithinChineseIme && englishCode === chineseCode;
 
+  if (useShiftFallback) {
+    if (mode === currentMode) {
+      return;
+    }
+    sendConfiguredSameImeToggle(mode);
+    return;
+  }
+
+  const code = mode === "chinese" ? chineseCode : englishCode;
+  markRecentSwitch(mode, `ime-code:${code}`);
   execFile(exePath, [code], { windowsHide: true }, (err) => {
     if (err) {
       logError(`Failed to execute im-select`, { error: err.message, mode, code });
@@ -737,7 +858,6 @@ function updateImeForEditor(editor, force = false) {
     return;
   }
 
-  currentMode = nextMode;
   const command = cfg.get("imSelectPath", "bin/im-select.exe");
 
   logInfo(`Switching IME mode`, {
@@ -747,6 +867,7 @@ function updateImeForEditor(editor, force = false) {
     character: editor.selection.active.character
   });
   runSwitchCommand(command, nextMode);
+  currentMode = nextMode;
   updateStatusBar();
 
   perfEnd('updateImeForEditor');
@@ -760,10 +881,10 @@ function switchToMode(mode, force = false) {
   if (mode === currentMode && !force) {
     return;
   }
-  currentMode = mode;
   const command = cfg.get("imSelectPath", "bin/im-select.exe");
   logInfo(`Manual mode switch`, { mode });
   runSwitchCommand(command, mode);
+  currentMode = mode;
   updateStatusBar();
 }
 
@@ -793,6 +914,52 @@ async function initializeEnglishCodeFromCurrentIme() {
   }
 
   detectedEnglishCode = null;
+}
+
+async function initializeSameImeInitialMode() {
+  const cfg = getConfig();
+  if (!cfg.get("useShiftWithinChineseIme", false)) {
+    return;
+  }
+
+  const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
+  const chineseCode = String(cfg.get("chineseCode", "2052"));
+  if (englishCode !== chineseCode) {
+    return;
+  }
+
+  const remembered = String(cfg.get("sameImeInitialMode", "unknown")).toLowerCase();
+  if (remembered === "chinese" || remembered === "english") {
+    currentMode = remembered;
+    updateStatusBar();
+    logInfo("Initialized same-IME mode from remembered preference", { mode: remembered });
+    return;
+  }
+
+  if (!cfg.get("promptSameImeInitialModeOnStartup", true)) {
+    return;
+  }
+
+  const action = await vscode.window.showInformationMessage(
+    "SmartCursor: 当前处于同一输入法中英切换模式，请确认你现在的输入态。",
+    { modal: true },
+    "当前是中文",
+    "当前是英文",
+    "稍后再说"
+  );
+
+  if (action === "当前是中文") {
+    currentMode = "chinese";
+    await cfg.update("sameImeInitialMode", "chinese", vscode.ConfigurationTarget.Global);
+    updateStatusBar();
+    return;
+  }
+
+  if (action === "当前是英文") {
+    currentMode = "english";
+    await cfg.update("sameImeInitialMode", "english", vscode.ConfigurationTarget.Global);
+    updateStatusBar();
+  }
 }
 
 function startEditorFocusMonitor() {
@@ -854,8 +1021,23 @@ function startImeStatusMonitor() {
         return;
       }
 
+      if (isWithinSwitchProtectionWindow()) {
+        logDebug("Skip IME status sync within protection window", {
+          strategy: lastSwitchStrategy,
+          elapsedMs: Date.now() - lastSwitchTimestamp
+        });
+        return;
+      }
+
       const chineseCode = String(cfg.get("chineseCode", "2052"));
       const englishCode = detectedEnglishCode || String(cfg.get("englishCode", "1033"));
+      const useShiftWithinChineseIme = cfg.get("useShiftWithinChineseIme", false);
+      const useShiftFallback = useShiftWithinChineseIme && englishCode === chineseCode;
+
+      if (useShiftFallback && currentImeCode === chineseCode) {
+        // Same-IME Shift mode cannot be inferred from IME code. Keep internal state.
+        return;
+      }
 
       // Determine mode based on current IME code
       let detectedMode = "unknown";
@@ -925,6 +1107,7 @@ async function activate(context) {
   );
 
   await initializeEnglishCodeFromCurrentIme();
+  await initializeSameImeInitialMode();
   startEditorFocusMonitor();
   startImeStatusMonitor();
 
@@ -997,9 +1180,10 @@ async function activate(context) {
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("imeContextSwitcher")) {
-        initializeEnglishCodeFromCurrentIme();
+        initializeEnglishCodeFromCurrentIme().then(() => initializeSameImeInitialMode());
         startEditorFocusMonitor();
-        scheduleUpdate(vscode.window.activeTextEditor);
+        startImeStatusMonitor();
+        scheduleUpdate(vscode.window.activeTextEditor, true);
       }
     })
   );
